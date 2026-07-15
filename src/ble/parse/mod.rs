@@ -3,6 +3,7 @@
 //! Decode dictionaries are optional enrichment: an unknown model tag or
 //! undecodable payload returns `None` and the caller emits the raw line.
 
+pub mod hub2;
 pub mod meter;
 pub mod meter_co2;
 mod sensor_th;
@@ -30,6 +31,11 @@ pub const MODELS: &[ModelInfo] = &[
         tag: 'T',
         values: &["temperature", "humidity", "battery"],
     },
+    ModelInfo {
+        model: "Hub2",
+        tag: 'v',
+        values: &["temperature", "humidity", "light_level"],
+    },
 ];
 
 pub struct Decoded {
@@ -52,6 +58,10 @@ pub fn decode(mfr: Option<&[u8]>, svc: Option<&[u8]>) -> Option<Decoded> {
         }),
         b'T' => meter::parse(mfr, svc).map(|values| Decoded {
             model: "Meter",
+            values,
+        }),
+        b'v' => hub2::parse(mfr, svc).map(|values| Decoded {
+            model: "Hub2",
             values,
         }),
         _ => None,

@@ -1,0 +1,8 @@
+# SwitchBot Hub 2 (model tag 'v') — real-hardware capture, 2026-07-15
+# Raspberry Pi passive scan. The 6 MAC bytes at the start of the
+# manufacturer payload are masked to zeros (public repo); the MAC is not
+# a decoded field.
+# Decoded reading at capture time: 24.1 C / 59 % / light_level 9.
+#
+# Format: <name> <mfr_payload_hex (0x0969 company ID stripped)> <svc_payload_hex>
+normal 00000000000000ff6a57094c4901983b00 7600

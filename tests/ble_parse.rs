@@ -14,6 +14,7 @@ fn fixture_in(file: &str, name: &str) -> (Vec<u8>, Vec<u8>) {
     let text = match file {
         "meter_pro_co2" => include_str!("fixtures/ble/meter_pro_co2.txt"),
         "meter" => include_str!("fixtures/ble/meter.txt"),
+        "hub2" => include_str!("fixtures/ble/hub2.txt"),
         _ => panic!("unknown fixture file {file}"),
     };
     for line in text.lines() {
@@ -196,4 +197,39 @@ fn models_table_lists_meter() {
     assert_eq!(m.model, "Meter");
     assert_eq!(m.tag, 'T');
     assert_eq!(m.values, ["temperature", "humidity", "battery"]);
+}
+
+#[test]
+fn decodes_hub2_capture() {
+    let (mfr, svc) = fixture_in("hub2", "normal");
+    let decoded = decode(Some(&mfr), Some(&svc)).expect("should decode");
+    assert_eq!(decoded.model, "Hub2");
+    assert_eq!(decoded.values["temperature"], json!(24.1));
+    assert_eq!(decoded.values["humidity"], json!(59));
+    assert_eq!(decoded.values["light_level"], json!(9));
+    assert!(!decoded.values.contains_key("battery"));
+}
+
+#[test]
+fn hub2_short_payload_yields_light_level_only() {
+    let (mfr, svc) = fixture_in("hub2", "normal");
+    // 13 bytes reach the light byte (index 12) but not temp bytes 13..16.
+    let decoded = decode(Some(&mfr[..13]), Some(&svc)).expect("should decode");
+    assert_eq!(decoded.values["light_level"], json!(9));
+    assert!(!decoded.values.contains_key("temperature"));
+    assert!(!decoded.values.contains_key("humidity"));
+}
+
+#[test]
+fn hub2_without_manufacturer_data_returns_none() {
+    let (_, svc) = fixture_in("hub2", "normal");
+    assert!(decode(None, Some(&svc)).is_none());
+}
+
+#[test]
+fn models_table_lists_hub2() {
+    let m = &MODELS[2];
+    assert_eq!(m.model, "Hub2");
+    assert_eq!(m.tag, 'v');
+    assert_eq!(m.values, ["temperature", "humidity", "light_level"]);
 }
