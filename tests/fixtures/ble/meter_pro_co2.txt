@@ -1,0 +1,11 @@
+# SwitchBot Meter Pro CO2 (model tag '5') — real-hardware captures.
+# Source: pySwitchbot test suite (MIT):
+#   https://github.com/sblibs/pySwitchbot/blob/master/tests/test_adv_parser.py
+#   (test_meter_pro_c_active and CO2 range tests)
+# The MAC embedded in the manufacturer payload is pySwitchbot's fixture
+# placeholder, not a real private device.
+#
+# Format: <name> <mfr_payload_hex (0x0969 company ID stripped)> <svc_payload_hex>
+normal b0e9fe543215b7e4079ba4003702d500 350064
+co2_out_of_range b0e9fe543215b7e4079ba400379c4000 350064
+co2_boundary b0e9fe543215b7e4079ba40037270f00 350064
