@@ -30,7 +30,7 @@ pub fn build_line(
     svc_payload: Option<&[u8]>,
 ) -> ScanLine {
     let decoded = parse::decode(Some(mfr_payload), svc_payload);
-    let mut mfr_hex = String::from("6909");
+    let mut mfr_hex = emit::hex(&parse::COMPANY_ID.to_le_bytes());
     mfr_hex.push_str(&emit::hex(mfr_payload));
     let (model, values) = match decoded {
         Some(d) => (Some(d.model), Some(d.values)),
