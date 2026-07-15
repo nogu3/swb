@@ -21,9 +21,8 @@ pub fn hex(bytes: &[u8]) -> String {
 
 /// RFC 3339 UTC with millisecond precision, e.g. `2026-07-15T06:00:00.123Z`.
 pub fn now_ts() -> String {
-    let fmt = format_description!(
-        "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z"
-    );
+    let fmt =
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
     OffsetDateTime::now_utc().format(&fmt).unwrap_or_default()
 }
 
@@ -80,6 +79,17 @@ impl ErrorKind {
     }
 }
 
+#[derive(Serialize)]
+struct ErrorBody<'a> {
+    kind: &'a str,
+    detail: &'a str,
+}
+
+#[derive(Serialize)]
+struct ErrorEnvelope<'a> {
+    error: ErrorBody<'a>,
+}
+
 #[derive(Debug)]
 pub struct SwbError {
     pub kind: ErrorKind,
@@ -120,13 +130,15 @@ impl SwbError {
 
     /// Machine-readable stderr line.
     pub fn to_json(&self) -> String {
-        // Build JSON with controlled field order: kind first, then detail.
-        let detail_escaped = serde_json::to_string(&self.detail).unwrap_or_default();
-        format!(
-            "{{\"error\":{{\"kind\":\"{}\",\"detail\":{}}}}}",
-            self.kind.as_str(),
-            detail_escaped
-        )
+        let envelope = ErrorEnvelope {
+            error: ErrorBody {
+                kind: self.kind.as_str(),
+                detail: &self.detail,
+            },
+        };
+        serde_json::to_string(&envelope).unwrap_or_else(|_| {
+            r#"{"error":{"kind":"other","detail":"error serialization failed"}}"#.to_string()
+        })
     }
 }
 
@@ -200,6 +212,19 @@ mod tests {
         assert_eq!(
             err.to_json(),
             r#"{"error":{"kind":"auth","detail":"missing credentials"}}"#
+        );
+    }
+
+    #[test]
+    fn error_detail_with_quotes_and_newlines_stays_valid_json() {
+        let err = SwbError::usage("line1\nline2 \"quoted\" back\\slash tab\t");
+        let json = err.to_json();
+        assert!(!json.contains('\n'), "must be a single line");
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["error"]["kind"], "usage");
+        assert_eq!(
+            parsed["error"]["detail"],
+            "line1\nline2 \"quoted\" back\\slash tab\t"
         );
     }
 }
