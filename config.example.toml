@@ -1,0 +1,15 @@
+# swb configuration example.
+# Copy to $XDG_CONFIG_HOME/swb/config.toml (fallback: ~/.config/swb/config.toml).
+
+# Collection window in seconds for `swb scan --once` (CLI --timeout wins).
+default_timeout = 30
+
+# Cloud API v1.1 credentials. The SWITCHBOT_TOKEN / SWITCHBOT_SECRET
+# environment variables take precedence over these.
+#[credentials]
+#token = "YOUR_TOKEN"
+#secret = "YOUR_SECRET"
+
+# Device aliases: `swb status living_co2` resolves to the raw device ID.
+[aliases]
+#living_co2 = "DEVICE_ID"
