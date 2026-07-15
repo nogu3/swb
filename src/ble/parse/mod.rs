@@ -4,6 +4,7 @@
 //! undecodable payload returns `None` and the caller emits the raw line.
 
 pub mod meter_co2;
+mod sensor_th;
 
 use crate::emit::Values;
 

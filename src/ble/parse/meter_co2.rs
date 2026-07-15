@@ -5,6 +5,7 @@
 
 use serde_json::json;
 
+use super::sensor_th;
 use crate::emit::Values;
 
 /// Sensor spec range is 400-9999 ppm; larger values are transient
@@ -16,12 +17,10 @@ pub fn parse(mfr: Option<&[u8]>, svc: Option<&[u8]>) -> Option<Values> {
 
     if let Some(m) = mfr {
         if m.len() >= 11 {
-            // byte 9: bit 7 = sign (1 = positive), bits 6..0 = integer C;
-            // byte 8 low nibble = tenths.
-            let sign = if m[9] & 0x80 != 0 { 1.0 } else { -1.0 };
-            let temperature = sign * (f64::from(m[9] & 0x7f) + f64::from(m[8] & 0x0f) / 10.0);
-            values.insert("temperature".to_string(), json!(temperature));
-            values.insert("humidity".to_string(), json!(m[10] & 0x7f));
+            if let Some((temperature, humidity)) = sensor_th::temp_humidity(&m[8..11]) {
+                values.insert("temperature".to_string(), json!(temperature));
+                values.insert("humidity".to_string(), json!(humidity));
+            }
         }
         if m.len() >= 15 {
             let co2 = u16::from_be_bytes([m[13], m[14]]);
