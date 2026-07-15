@@ -110,3 +110,41 @@ fn models_table_lists_meter_pro_co2() {
     assert_eq!(m.tag, '5');
     assert_eq!(m.values, ["temperature", "humidity", "co2", "battery"]);
 }
+
+#[test]
+fn build_line_prepends_company_id_and_decodes() {
+    let (mfr, svc) = fixture("normal");
+    let line = swb::ble::build_line(
+        "2026-07-15T00:00:00.000Z".to_string(),
+        "XX:XX:XX:XX:XX:XX".to_string(),
+        Some(-61),
+        &mfr,
+        Some(&svc),
+    );
+    assert_eq!(
+        line.mfr_hex.as_deref(),
+        Some("6909b0e9fe543215b7e4079ba4003702d500")
+    );
+    assert_eq!(line.svc_hex.as_deref(), Some("350064"));
+    assert_eq!(line.model, Some("MeterProCO2"));
+    let values = line.values.expect("decoded values");
+    assert_eq!(values["co2"], json!(725));
+}
+
+#[test]
+fn build_line_unknown_payload_is_raw_only() {
+    let line = swb::ble::build_line(
+        "2026-07-15T00:00:00.000Z".to_string(),
+        "XX:XX:XX:XX:XX:XX".to_string(),
+        None,
+        &[0x01, 0x02],
+        None,
+    );
+    assert_eq!(line.mfr_hex.as_deref(), Some("69090102"));
+    assert!(line.svc_hex.is_none());
+    assert!(line.model.is_none());
+    assert!(line.values.is_none());
+    // rssi is None -> must not serialize as null
+    let json = serde_json::to_string(&line).unwrap();
+    assert!(!json.contains("null"));
+}
