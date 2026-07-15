@@ -9,9 +9,13 @@ fn unhex(s: &str) -> Vec<u8> {
         .collect()
 }
 
-/// Returns (mfr_payload, svc_payload) for a named fixture line.
-fn fixture(name: &str) -> (Vec<u8>, Vec<u8>) {
-    let text = include_str!("fixtures/ble/meter_pro_co2.txt");
+/// Returns (mfr_payload, svc_payload) for a named line of a fixture file.
+fn fixture_in(file: &str, name: &str) -> (Vec<u8>, Vec<u8>) {
+    let text = match file {
+        "meter_pro_co2" => include_str!("fixtures/ble/meter_pro_co2.txt"),
+        "meter" => include_str!("fixtures/ble/meter.txt"),
+        _ => panic!("unknown fixture file {file}"),
+    };
     for line in text.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -24,7 +28,12 @@ fn fixture(name: &str) -> (Vec<u8>, Vec<u8>) {
             return (mfr, svc);
         }
     }
-    panic!("fixture {name} not found");
+    panic!("fixture {file}/{name} not found");
+}
+
+/// Shorthand for the meter_pro_co2 fixture used by the original tests.
+fn fixture(name: &str) -> (Vec<u8>, Vec<u8>) {
+    fixture_in("meter_pro_co2", name)
 }
 
 #[test]
@@ -147,4 +156,44 @@ fn build_line_unknown_payload_is_raw_only() {
     // rssi is None -> must not serialize as null
     let json = serde_json::to_string(&line).unwrap();
     assert!(!json.contains("null"));
+}
+
+#[test]
+fn decodes_meter_capture() {
+    let (mfr, svc) = fixture_in("meter", "normal");
+    let decoded = decode(Some(&mfr), Some(&svc)).expect("should decode");
+    assert_eq!(decoded.model, "Meter");
+    assert_eq!(decoded.values["temperature"], json!(27.3));
+    assert_eq!(decoded.values["humidity"], json!(62));
+    assert_eq!(decoded.values["battery"], json!(100));
+}
+
+#[test]
+fn meter_falls_back_to_service_data_when_mfr_short() {
+    let (_, svc) = fixture_in("meter", "normal");
+    // Payload too short for mfr bytes 8..11 -> svc bytes 3..6 fallback.
+    let short = [0u8; 6];
+    let decoded = decode(Some(&short), Some(&svc)).expect("should decode");
+    assert_eq!(decoded.values["temperature"], json!(27.3));
+    assert_eq!(decoded.values["humidity"], json!(62));
+    assert_eq!(decoded.values["battery"], json!(100));
+}
+
+#[test]
+fn meter_negative_temperature_decodes() {
+    let (mut mfr, svc) = fixture_in("meter", "normal");
+    mfr[8] = 0x05; // fraction .5
+    mfr[9] = 0x02; // integer 2, sign bit clear -> negative
+    mfr[10] = 0x28; // humidity 40
+    let decoded = decode(Some(&mfr), Some(&svc)).expect("should decode");
+    assert_eq!(decoded.values["temperature"], json!(-2.5));
+    assert_eq!(decoded.values["humidity"], json!(40));
+}
+
+#[test]
+fn models_table_lists_meter() {
+    let m = &MODELS[1];
+    assert_eq!(m.model, "Meter");
+    assert_eq!(m.tag, 'T');
+    assert_eq!(m.values, ["temperature", "humidity", "battery"]);
 }

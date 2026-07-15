@@ -1,0 +1,8 @@
+# SwitchBot Meter (original WoSensorTH, model tag 'T') — real-hardware
+# capture, 2026-07-15 Raspberry Pi passive scan. The 6 MAC bytes at the
+# start of the manufacturer payload are masked to zeros (public repo);
+# the MAC is not a decoded field.
+# Decoded reading at capture time: 27.3 C / 62 % / battery 100.
+#
+# Format: <name> <mfr_payload_hex (0x0969 company ID stripped)> <svc_payload_hex>
+normal 0000000000005303039b3e 540064039b3e
