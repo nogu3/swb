@@ -49,8 +49,15 @@ Schema:
 | `svc_hex` | when present | raw `0xfd3d` service data, hex |
 | `model` / `values` | when decoded | added only when the decode dictionary matches; never guessed, never null |
 
-`swb models` lists the models with decode support. Unknown models still
-produce raw lines.
+Models with decode support (also available at runtime via `swb models`):
+
+| model | tag | values |
+|---|---|---|
+| MeterProCO2 | `5` | temperature, humidity, co2, battery |
+| Meter | `T` | temperature, humidity, battery |
+| Hub2 | `v` | temperature, humidity, light_level |
+
+Unknown models still produce raw lines.
 
 Pipe to [Vector](https://vector.dev):
 

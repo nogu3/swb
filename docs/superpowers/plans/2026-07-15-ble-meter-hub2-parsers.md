@@ -41,7 +41,7 @@ Byte offsets are into the manufacturer payload **without** the 2-byte 0x0969 com
 - Consumes: nothing new.
 - Produces: `pub(crate) fn temp_humidity(b: &[u8]) -> Option<(f64, u8)>` in `crate::ble::parse::sensor_th` — returns `(temperature_celsius, humidity_percent)`, `None` if `b.len() < 3`. Tasks 2 and 3 call this exact signature.
 
-- [ ] **Step 1: Write `sensor_th.rs` with failing unit tests**
+- [x] **Step 1: Write `sensor_th.rs` with failing unit tests**
 
 ```rust
 //! Shared 3-byte temperature/humidity codec used by SwitchBot sensor
@@ -92,7 +92,7 @@ mod tests {
 
 Note: writing the module and its tests together is still test-first here — the tests are the spec for the codec, and Step 2 proves they run and pass before any caller is refactored onto it. (A "fails first" cycle is impossible for a brand-new module that must compile to run its tests.)
 
-- [ ] **Step 2: Register the module and run the new tests**
+- [x] **Step 2: Register the module and run the new tests**
 
 In `src/ble/parse/mod.rs`, after `pub mod meter_co2;` add:
 
@@ -103,7 +103,7 @@ mod sensor_th;
 Run: `cargo test --features vendored-dbus sensor_th`
 Expected: 4 passed.
 
-- [ ] **Step 3: Refactor `meter_co2.rs` onto the codec**
+- [x] **Step 3: Refactor `meter_co2.rs` onto the codec**
 
 Replace the temperature/humidity block in `src/ble/parse/meter_co2.rs`. The `if m.len() >= 11` body currently computes sign/temperature/humidity inline; change the file to:
 
@@ -154,17 +154,17 @@ pub fn parse(mfr: Option<&[u8]>, svc: Option<&[u8]>) -> Option<Values> {
 }
 ```
 
-- [ ] **Step 4: Run the full suite to prove the refactor is behavior-preserving**
+- [x] **Step 4: Run the full suite to prove the refactor is behavior-preserving**
 
 Run: `cargo test --features vendored-dbus`
 Expected: all tests pass (40 total: previous 36 + 4 codec tests), especially `decodes_meter_pro_co2_capture` and `negative_temperature_decodes` unchanged.
 
-- [ ] **Step 5: fmt + clippy**
+- [x] **Step 5: fmt + clippy**
 
 Run: `cargo fmt && cargo clippy --all-targets --features vendored-dbus -- -D warnings`
 Expected: no warnings.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/ble/parse/sensor_th.rs src/ble/parse/mod.rs src/ble/parse/meter_co2.rs
@@ -187,7 +187,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `sensor_th::temp_humidity(b: &[u8]) -> Option<(f64, u8)>` from Task 1; `crate::emit::Values` (a `BTreeMap<String, serde_json::Value>` alias already used by `meter_co2`).
 - Produces: `pub fn parse(mfr: Option<&[u8]>, svc: Option<&[u8]>) -> Option<Values>` in `crate::ble::parse::meter`; `decode()` returns model name `"Meter"` for tag `'T'`; `MODELS[1]` = Meter entry.
 
-- [ ] **Step 1: Add the fixture file**
+- [x] **Step 1: Add the fixture file**
 
 Create `tests/fixtures/ble/meter.txt`:
 
@@ -202,7 +202,7 @@ Create `tests/fixtures/ble/meter.txt`:
 normal 0000000000005303039b3e 540064039b3e
 ```
 
-- [ ] **Step 2: Generalize the fixture loader in `tests/ble_parse.rs`**
+- [x] **Step 2: Generalize the fixture loader in `tests/ble_parse.rs`**
 
 Replace the existing `fixture` helper (keep `unhex` as is) with:
 
@@ -238,7 +238,7 @@ fn fixture(name: &str) -> (Vec<u8>, Vec<u8>) {
 Run: `cargo test --features vendored-dbus --test ble_parse`
 Expected: all existing tests still pass.
 
-- [ ] **Step 3: Write the failing Meter tests**
+- [x] **Step 3: Write the failing Meter tests**
 
 Append to `tests/ble_parse.rs`:
 
@@ -287,7 +287,7 @@ fn models_table_lists_meter() {
 Run: `cargo test --features vendored-dbus --test ble_parse meter`
 Expected: FAIL — `decode` returns `None` for tag 'T' (`should decode` panics) and `MODELS[1]` is out of bounds.
 
-- [ ] **Step 4: Implement the parser**
+- [x] **Step 4: Implement the parser**
 
 Create `src/ble/parse/meter.rs`:
 
@@ -367,17 +367,17 @@ b'T' => meter::parse(mfr, svc).map(|values| Decoded {
 }),
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cargo test --features vendored-dbus`
 Expected: all pass, including the 4 new Meter tests.
 
-- [ ] **Step 6: fmt + clippy**
+- [x] **Step 6: fmt + clippy**
 
 Run: `cargo fmt && cargo clippy --all-targets --features vendored-dbus -- -D warnings`
 Expected: no warnings.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/ble/parse/meter.rs src/ble/parse/mod.rs tests/ble_parse.rs tests/fixtures/ble/meter.txt
@@ -400,7 +400,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `sensor_th::temp_humidity(b: &[u8]) -> Option<(f64, u8)>` from Task 1; `fixture_in(file, name)` loader from Task 2.
 - Produces: `pub fn parse(mfr: Option<&[u8]>, svc: Option<&[u8]>) -> Option<Values>` in `crate::ble::parse::hub2`; `decode()` returns model name `"Hub2"` for tag `'v'`; `MODELS[2]` = Hub2 entry.
 
-- [ ] **Step 1: Add the fixture file**
+- [x] **Step 1: Add the fixture file**
 
 Create `tests/fixtures/ble/hub2.txt`:
 
@@ -421,7 +421,7 @@ Register it in the `fixture_in` match in `tests/ble_parse.rs` (add before the pa
         "hub2" => include_str!("fixtures/ble/hub2.txt"),
 ```
 
-- [ ] **Step 2: Write the failing Hub 2 tests**
+- [x] **Step 2: Write the failing Hub 2 tests**
 
 Append to `tests/ble_parse.rs`:
 
@@ -465,7 +465,7 @@ fn models_table_lists_hub2() {
 Run: `cargo test --features vendored-dbus --test ble_parse hub2`
 Expected: FAIL — `decode` returns `None` for tag 'v' and `MODELS[2]` is out of bounds.
 
-- [ ] **Step 3: Implement the parser**
+- [x] **Step 3: Implement the parser**
 
 Create `src/ble/parse/hub2.rs`:
 
@@ -535,17 +535,17 @@ b'v' => hub2::parse(mfr, svc).map(|values| Decoded {
 }),
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cargo test --features vendored-dbus`
 Expected: all pass, including the 4 new Hub 2 tests.
 
-- [ ] **Step 5: fmt + clippy**
+- [x] **Step 5: fmt + clippy**
 
 Run: `cargo fmt && cargo clippy --all-targets --features vendored-dbus -- -D warnings`
 Expected: no warnings.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/ble/parse/hub2.rs src/ble/parse/mod.rs tests/ble_parse.rs tests/fixtures/ble/hub2.txt
@@ -564,12 +564,12 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: the swb binary with Tasks 1-3 merged.
 - Produces: confirmation that Meter and Hub 2 lines decode on real hardware.
 
-- [ ] **Step 1: Quality gate on the full tree**
+- [x] **Step 1: Quality gate on the full tree**
 
 Run: `cargo fmt --check && cargo clippy --all-targets --features vendored-dbus -- -D warnings && cargo test --features vendored-dbus`
 Expected: clean.
 
-- [ ] **Step 2: Cross-build and deploy to the Pi**
+- [x] **Step 2: Cross-build and deploy to the Pi**
 
 `PI_HOST` below is the ssh alias of the Raspberry Pi used for manual
 verification (never commit the real hostname).
@@ -579,16 +579,16 @@ cross build --release --target aarch64-unknown-linux-gnu --features vendored-dbu
 scp target/aarch64-unknown-linux-gnu/release/swb PI_HOST:/tmp/swb
 ```
 
-- [ ] **Step 3: Verify `models` lists three models**
+- [x] **Step 3: Verify `models` lists three models**
 
 Run: `ssh PI_HOST '/tmp/swb models'`
 Expected: JSON array with MeterProCO2, Meter (tag "T"), Hub2 (tag "v").
 
-- [ ] **Step 4: Verify live decode**
+- [x] **Step 4: Verify live decode**
 
 Run: `ssh PI_HOST '/tmp/swb scan --once --timeout 15'`
 Expected: the tag-'T' device line now carries `"model":"Meter"` with plausible `temperature`/`humidity`/`battery`; the tag-'v' device line carries `"model":"Hub2"` with plausible `temperature`/`humidity` and `light_level` in 1-21. MeterProCO2 lines unchanged. Tag 0x00/0x32 devices still raw-only.
 
-- [ ] **Step 5: Report results**
+- [x] **Step 5: Report results**
 
 No commit — report the verified output lines (with real MACs redacted) back to the user.
