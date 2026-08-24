@@ -1,0 +1,11 @@
+# Deploy build: `cross build --release --target aarch64-unknown-linux-gnu`.
+# btleplug pulls in bluez-async → libdbus (C dependency), so the target needs
+# the arm64 libdbus headers; the result is a dynamically linked binary for a
+# glibc/libdbus-1.so.3 host (e.g. Raspberry Pi OS / Debian). musl is not an
+# option here: the dbus C toolchain is not set up for it (same conclusion as
+# the sibling `mat` project).
+[target.aarch64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture arm64",
+    "apt-get update && apt-get install --assume-yes libdbus-1-dev:arm64",
+]
