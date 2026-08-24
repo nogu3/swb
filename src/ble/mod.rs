@@ -5,7 +5,7 @@
 
 pub mod parse;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter};
@@ -47,6 +47,49 @@ pub fn build_line(
     }
 }
 
+/// Per-device dedup for `--once`. A device is settled by its first *decoded*
+/// line, not its first advertisement: manufacturer and service data arrive in
+/// separate packets, so the first line for a device often lacks the service
+/// data that model detection needs (issue #1). Undecoded lines are held back
+/// (latest wins) and flushed at the end of the window, so a device that never
+/// decodes still produces its raw line exactly once.
+struct OnceWindow {
+    settled: HashSet<String>,
+    pending: HashMap<String, ScanLine>,
+}
+
+impl OnceWindow {
+    fn new() -> Self {
+        Self {
+            settled: HashSet::new(),
+            pending: HashMap::new(),
+        }
+    }
+
+    /// Returns the line to emit now, or `None` if it was held or skipped.
+    fn offer(&mut self, line: ScanLine) -> Option<ScanLine> {
+        if self.settled.contains(&line.addr) {
+            return None;
+        }
+        if line.model.is_some() {
+            self.settled.insert(line.addr.clone());
+            self.pending.remove(&line.addr);
+            Some(line)
+        } else {
+            self.pending.insert(line.addr.clone(), line);
+            None
+        }
+    }
+
+    /// Latest raw lines of the devices that never decoded, sorted by address
+    /// for deterministic output.
+    fn flush(self) -> Vec<ScanLine> {
+        let mut lines: Vec<ScanLine> = self.pending.into_values().collect();
+        lines.sort_by(|a, b| a.addr.cmp(&b.addr));
+        lines
+    }
+}
+
 /// Run the scan loop until interrupted (`follow`) or until `timeout_secs`
 /// elapses (`--once`, deduplicated per device).
 pub fn run_scan(follow: bool, timeout_secs: u64) -> Result<(), SwbError> {
@@ -74,7 +117,7 @@ async fn scan(follow: bool, timeout_secs: u64) -> Result<(), SwbError> {
     tracing::info!(follow, timeout_secs, "BLE scan started");
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
-    let mut seen: HashSet<String> = HashSet::new();
+    let mut window = OnceWindow::new();
     let mut emitted = 0usize;
 
     loop {
@@ -99,15 +142,23 @@ async fn scan(follow: bool, timeout_secs: u64) -> Result<(), SwbError> {
             let Some(line) = assemble(&central, &id, payload).await else {
                 continue;
             };
-            if !follow && !seen.insert(line.addr.clone()) {
-                continue;
+            if follow {
+                emit::print_json(&line);
+                emitted += 1;
+            } else if let Some(line) = window.offer(line) {
+                emit::print_json(&line);
+                emitted += 1;
             }
-            emit::print_json(&line);
-            emitted += 1;
         }
     }
 
     let _ = central.stop_scan().await;
+    if !follow {
+        for line in window.flush() {
+            emit::print_json(&line);
+            emitted += 1;
+        }
+    }
     if !follow && emitted == 0 {
         return Err(SwbError::timeout(format!(
             "no SwitchBot advertisement received within {timeout_secs}s"
@@ -133,4 +184,77 @@ async fn assemble(central: &Adapter, id: &PeripheralId, mfr_payload: &[u8]) -> O
 
 fn adapter_err(e: btleplug::Error) -> SwbError {
     SwbError::adapter(format!("BLE adapter error: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::emit::Values;
+
+    fn line(addr: &str, decoded: bool) -> ScanLine {
+        ScanLine {
+            ts: "2026-08-25T00:00:00.000Z".to_string(),
+            addr: addr.to_string(),
+            rssi: Some(-70),
+            mfr_hex: Some("6909".to_string()),
+            svc_hex: decoded.then(|| "350064".to_string()),
+            model: decoded.then_some("MeterProCO2"),
+            values: decoded.then(Values::new),
+        }
+    }
+
+    #[test]
+    fn decoded_line_emits_immediately_and_settles_device() {
+        let mut w = OnceWindow::new();
+        assert!(w.offer(line("AA", true)).is_some());
+        // Later advertisements for a settled device are skipped, decoded or not.
+        assert!(w.offer(line("AA", true)).is_none());
+        assert!(w.offer(line("AA", false)).is_none());
+        assert!(w.flush().is_empty());
+    }
+
+    #[test]
+    fn raw_line_is_held_until_a_decoded_one_arrives() {
+        let mut w = OnceWindow::new();
+        assert!(w.offer(line("AA", false)).is_none());
+        let emitted = w.offer(line("AA", true)).expect("decoded line must emit");
+        assert!(emitted.model.is_some());
+        // The pending raw line was superseded by the decoded one.
+        assert!(w.flush().is_empty());
+    }
+
+    #[test]
+    fn never_decoded_device_flushes_its_latest_raw_line_at_window_end() {
+        let mut w = OnceWindow::new();
+        let mut first = line("AA", false);
+        first.rssi = Some(-80);
+        let mut second = line("AA", false);
+        second.rssi = Some(-60);
+        assert!(w.offer(first).is_none());
+        assert!(w.offer(second).is_none());
+        let flushed = w.flush();
+        assert_eq!(flushed.len(), 1);
+        assert_eq!(flushed[0].rssi, Some(-60)); // latest raw wins
+        assert!(flushed[0].model.is_none());
+    }
+
+    #[test]
+    fn flush_is_sorted_by_addr_for_deterministic_output() {
+        let mut w = OnceWindow::new();
+        assert!(w.offer(line("BB", false)).is_none());
+        assert!(w.offer(line("AA", false)).is_none());
+        let addrs: Vec<String> = w.flush().into_iter().map(|l| l.addr).collect();
+        assert_eq!(addrs, ["AA", "BB"]);
+    }
+
+    #[test]
+    fn devices_are_independent() {
+        let mut w = OnceWindow::new();
+        assert!(w.offer(line("AA", true)).is_some());
+        assert!(w.offer(line("BB", false)).is_none());
+        assert!(w.offer(line("CC", true)).is_some());
+        let flushed = w.flush();
+        assert_eq!(flushed.len(), 1);
+        assert_eq!(flushed[0].addr, "BB");
+    }
 }
