@@ -16,7 +16,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 btleplug = "0.11"
 tokio = { version = "1", features = ["rt", "time"] }
 futures = "0.3"
-ureq = "2"
+ureq = "3"
 hmac = "0.12"
 sha2 = "0.10"
 base64 = "0.22"
